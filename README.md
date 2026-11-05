@@ -10,6 +10,7 @@ results back to Stata as a regular estimation command. You never have to open R.
 - Several outcomes in one call, `rfixest (y1 y2 y3) x, absorb(id year)`, with the fixed effects computed once
 - Interacted fixed effects (`absorb(id industry#year)`), factor variables, `aweight`/`pweight`,
   robust and multiway clustered standard errors
+- Saves the estimated fixed effects and the residuals, as in `reghdfe`: `absorb(FE_id=id year) residuals(res)`
 - Works with `estimates store`, `esttab`, `test`, `lincom` and `e(sample)`
 - R runs in the background: no R window, no R code to write
 
@@ -44,6 +45,9 @@ rfixest ln_wage tenure ttl_exp i.union, absorb(idcode ind_code#year) cluster(idc
 * two outcomes at once, stored as m1 and m2
 rfixest (ln_wage hours) tenure ttl_exp, absorb(idcode year) cluster(idcode) estore(m)
 esttab m1 m2, se
+
+* save the fixed effects and the residuals
+rfixest ln_wage tenure ttl_exp, absorb(FE_id=idcode FE_year=year) residuals(res) cluster(idcode)
 
 * Poisson
 rfixest hours tenure ttl_exp, absorb(idcode year) cluster(idcode) family(poisson)

@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.0.0  04nov2026}{...}
+{* *! version 1.1.0  04nov2026}{...}
 {title:Title}
 
 {phang}
@@ -21,7 +21,7 @@
 {synopthdr}
 {synoptline}
 {syntab:Model}
-{synopt:{opt a:bsorb(terms)}}fixed effects to absorb, for example {cmd:absorb(id year)} or {cmd:absorb(id year#industry)}{p_end}
+{synopt:{opt a:bsorb(terms)}}fixed effects to absorb, for example {cmd:absorb(id year)} or {cmd:absorb(id year#industry)}; {cmd:absorb(FE_city=city)} also saves the estimated fixed effect in the new variable {cmd:FE_city}{p_end}
 {synopt:{opt f:amily(name)}}{cmd:ols} (default), {cmd:poisson} or {cmd:negbin}{p_end}
 {synopt:{opt keepsing:letons}}keep singleton groups (dropped by default, as in {cmd:reghdfe}){p_end}
 
@@ -32,6 +32,7 @@
 {synopt:{opt ppmlse}}no small-sample adjustment of the variance, as {cmd:ppmlhdfe}{p_end}
 
 {syntab:Reporting and storing}
+{synopt:{opt res:iduals(newvar)}}save the residuals in {it:newvar} (missing outside the estimation sample){p_end}
 {synopt:{opt est:ore(name)}}store the estimates; with several outcomes, {it:name}1, {it:name}2, ...{p_end}
 {synopt:{opt esta:rt(#)}}first number used to name stored estimates; default 1{p_end}
 {synopt:{opt l:evel(#)}}confidence level; default {cmd:level(95)}{p_end}
@@ -105,8 +106,22 @@ R runs in the background without opening any window. Stata must run with its gra
 {phang2}{cmd:. rfixest (ln_wage hours) tenure ttl_exp, absorb(idcode year) cluster(idcode) estore(m)}{p_end}
 {phang2}{cmd:. esttab m1 m2, se star(* 0.10 ** 0.05 *** 0.01)}{p_end}
 
+{pstd}Save the fixed effects and the residuals{p_end}
+{phang2}{cmd:. rfixest ln_wage tenure ttl_exp, absorb(FE_id=idcode FE_year=year) residuals(res) cluster(idcode)}{p_end}
+
 {pstd}Poisson regression{p_end}
 {phang2}{cmd:. rfixest hours tenure ttl_exp, absorb(idcode year) cluster(idcode) family(poisson)}{p_end}
+
+
+{title:Saved fixed effects and residuals}
+
+{pstd}
+{cmd:absorb(}{it:newvar}{cmd:=}{it:term}{cmd:)} saves the estimated fixed effect of {it:term} for each observation, and
+{cmd:residuals(}{it:newvar}{cmd:)} saves the residuals, both only for observations in the estimation sample. They need a single
+dependent variable. With two or more fixed effects, each one is identified only up to a constant, so the level of a saved fixed
+effect can differ from {cmd:reghdfe} by a constant; differences between groups, the sum of all fixed effects plus the constant
+and the residuals are the same. For Poisson and negative binomial models the fixed effects are on the scale of the linear index
+and the residuals are {it:y} minus the predicted mean.
 
 
 {title:Stored results}

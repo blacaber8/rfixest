@@ -1,4 +1,4 @@
-*! rfixest 1.0.0  04nov2026
+*! rfixest 1.1.0  04nov2026
 *! Fixed-effects regressions in Stata estimated by the R package fixest
 program define rfixest, eclass
 	version 16
@@ -27,7 +27,8 @@ program define rfixest, eclass
 	syntax varlist(numeric fv ts) [if] [in] [aw pw] , ///
 		[ Absorb(string) NOAbsorb VCE(string) CLuster(varlist) Family(string) ///
 		  KEEPSINGletons DFRESid PPMLse FULLsample THReads(integer 0) TOL(real 1e-6) ///
-		  ESTore(name) ESTArt(integer 1) TMPdir(string) RSCRIPT(string) Level(cilevel) QUIetly TIMEit KEEPfiles ]
+		  ESTore(name) ESTArt(integer 1) TMPdir(string) RSCRIPT(string) Level(cilevel) QUIetly TIMEit KEEPfiles ///
+		  RESiduals(name) ]
 
 	cap timer off 100
 	timer clear 100
@@ -51,7 +52,18 @@ program define rfixest, eclass
 
 	local fevars ""
 	local feterms ""
+	local fesave ""
+	local fenames ""
+	local absorb = ustrregexra(`"`absorb'"', "\s*=\s*", "=")
 	foreach t of local absorb {
+		local nm "."
+		if strpos("`t'", "=") {
+			local nm = substr("`t'", 1, strpos("`t'", "=") - 1)
+			local t = substr("`t'", strpos("`t'", "=") + 1, .)
+			confirm new variable `nm'
+			local fenames `fenames' `nm'
+		}
+		local fesave `fesave' `nm'
 		local t = subinstr("`t'", "##", "#", .)
 		local parts = subinstr("`t'", "#", " ", .)
 		local term ""
@@ -68,6 +80,16 @@ program define rfixest, eclass
 		local feterms `feterms' `term'
 	}
 	local fevars : list uniq fevars
+	if "`residuals'" != "" confirm new variable `residuals'
+	if "`fenames'`residuals'" != "" & `multi' {
+		di as error "residuals() and saved fixed effects (absorb(newvar=var)) need a single dependent variable"
+		exit 198
+	}
+	local dup : list dups fenames
+	if "`dup'" != "" | `: list residuals in fenames' & "`residuals'" != "" {
+		di as error "the names of saved fixed effects and residuals must be different"
+		exit 198
+	}
 
 	local vtype "unadjusted"
 	if "`weight'" == "pweight" local vtype "robust"
@@ -126,7 +148,7 @@ program define rfixest, eclass
 	cap noisily _rfx_run, ys(`ys') xvars(`xvars') xnames(`xnames') fevars(`fevars') feterms(`feterms') absorb(`absorb') ///
 		cl(`cluster') wv(`wv') weight(`weight') vtype(`vtype') family(`family') `keepsingletons' `dfresid' `ppmlse' `fullsample' ///
 		estart(`estart') threads(`threads') tol(`tol') touse(`touse') dir(`dir') estore(`estore') level(`level') ///
-		`quietly' `timeit' multi(`multi') rscript(`rscript') cmdline(`cmdline')
+		`quietly' `timeit' multi(`multi') rscript(`rscript') cmdline(`cmdline') fesave(`fesave') residuals(`residuals')
 	local rc = _rc
 	if "`keepfiles'" == "" {
 		local fs : dir `"`dir'"' files "*"
@@ -145,7 +167,7 @@ program define _rfx_run, eclass
 	syntax , ys(varlist) touse(name) dir(string) vtype(string) family(string) threads(integer) tol(real) multi(integer) ///
 		rscript(string) [ xvars(string) xnames(string) fevars(string) feterms(string) absorb(string) cl(string) wv(string) ///
 		weight(string) keepsingletons dfresid ppmlse fullsample estart(integer 1) estore(string) level(cilevel) quietly timeit ///
-		cmdline(string asis) ]
+		cmdline(string asis) fesave(string) residuals(string) ]
 
 	tempvar rid
 	qui gen long `rid' = _n
@@ -196,6 +218,13 @@ program define _rfx_run, eclass
 	file write `fh' "rid `m_rid'" _n "vce `vtype'" _n "family `family'" _n "threads `threads'" _n "tol `tol'" _n
 	file write `fh' "keepsingletons " (cond("`keepsingletons'" != "", 1, 0)) _n
 	file write `fh' "ppmlse " (cond("`ppmlse'" != "", 1, 0)) _n
+	local flags ""
+	local savev ""
+	foreach nm of local fesave {
+		local flags `flags' `=cond("`nm'" != ".", 1, 0)'
+		if "`nm'" != "." local savev `savev' `nm'
+	}
+	file write `fh' "fesave `flags'" _n "resid " (cond("`residuals'" != "", 1, 0)) _n
 	file close `fh'
 
 	local rfile `"`dir'/rfixest.R"'
@@ -304,6 +333,30 @@ program define _rfx_run, eclass
 			else local nm "`estore'"
 			estimates store `nm'
 			local stored `stored' `nm'
+		}
+	}
+
+	if "`residuals'`savev'" != "" {
+		cap confirm file `"`dir'/save1.txt"'
+		if !_rc {
+			tempname sh
+			file open `sh' using `"`dir'/save1.txt"', read text
+			file read `sh' nr
+			file read `sh' nc
+			file close `sh'
+			local newv `residuals' `savev'
+			foreach v of local newv {
+				qui gen double `v' = .
+			}
+			mata: _rfx_readsave(`"`dir'/save1.bin"', `nr', `nc', "`newv'")
+			if "`residuals'" != "" label variable `residuals' "Residuals of rfixest `ys'"
+			local i = 0
+			foreach nm of local fesave {
+				local ++i
+				if "`nm'" == "." continue
+				local term : word `i' of `feterms'
+				label variable `nm' "Fixed effect of `term'"
+			}
 		}
 	}
 
@@ -570,6 +623,21 @@ void _rfx_read(string scalar fn, string scalar bname, string scalar Vname)
 	st_matrix(Vname, colshape(v, nb)')
 }
 
+void _rfx_readsave(string scalar fn, real scalar n, real scalar nc, string scalar vars)
+{
+	real scalar fh, j
+	real matrix x
+	string rowvector v
+	transmorphic C
+	fh = fopen(fn, "r")
+	C = bufio()
+	bufbyteorder(C, 2)
+	x = bufget(C, fread(fh, n * nc * 8), 0, "%8z", nc, n)'
+	fclose(fh)
+	v = tokens(vars)
+	for (j = 1; j <= cols(v); j++) st_store(x[., 1], v[j], x[., j + 1])
+}
+
 void _rfx_excl(string scalar fn, string scalar var)
 {
 	real colvector x
@@ -583,8 +651,8 @@ mata:
 string colvector _rfx_rcode()
 {
 	string colvector s
-	s = J(169, 1, "")
-	s[1] = "# rfixest 1.0.0: R side of the Stata command rfixest. Called by rfixest.ado; not meant to be run by hand."
+	s = J(184, 1, "")
+	s[1] = "# rfixest 1.1.0: R side of the Stata command rfixest. Called by rfixest.ado; not meant to be run by hand."
 	s[2] = "t_start <- proc.time()[[" + char(34) + "elapsed" + char(34) + "]]"
 	s[3] = "argv <- commandArgs(trailingOnly = TRUE)"
 	s[4] = "dir <- argv[1]"
@@ -737,22 +805,37 @@ string colvector _rfx_rcode()
 	s[151] = "      paste(" + char(34) + "v" + char(34) + ", num(as.vector(Vf)))"
 	s[152] = "    ), file.path(dir, paste0(" + char(34) + "r" + char(34) + ", k, " + char(34) + ".txt" + char(34) + ")))"
 	s[153] = ""
-	s[154] = "    ex <- d[[one(" + char(34) + "rid" + char(34) + ")]][setdiff(seq_len(n_d), used)]"
-	s[155] = "    if (length(ex)) writeLines(as.character(ex), file.path(dir, paste0(" + char(34) + "x" + char(34) + ", k, " + char(34) + ".txt" + char(34) + ")))"
-	s[156] = "  }"
-	s[157] = ""
-	s[158] = "  t_end <- proc.time()[[" + char(34) + "elapsed" + char(34) + "]]"
-	s[159] = "  writeLines(paste(c(" + char(34) + "lib" + char(34) + ", " + char(34) + "read" + char(34) + ", " + char(34) + "fit" + char(34) + ", " + char(34) + "write" + char(34) + "),"
-	s[160] = "                   c(t_lib - t_start, t_read - t_lib, t_fit - t_read, t_end - t_fit)),"
-	s[161] = "             file.path(dir, " + char(34) + "time.txt" + char(34) + "))"
-	s[162] = "  " + char(34) + "ok" + char(34)
-	s[163] = "}, error = function(e) conditionMessage(e))"
-	s[164] = ""
-	s[165] = "if (!identical(res, " + char(34) + "ok" + char(34) + ")) fail(paste(" + char(34) + "Error in R:" + char(34) + ", res))"
-	s[166] = "writeLines(" + char(34) + "ok" + char(34) + ", file.path(dir, " + char(34) + "ok.txt" + char(34) + "))"
-	s[167] = "sink(type = " + char(34) + "message" + char(34) + ")"
-	s[168] = "sink()"
-	s[169] = "close(logcon)"
+	s[154] = "    fesave <- meta" + char(36) + "fesave == " + char(34) + "1" + char(34)
+	s[155] = "    doresid <- one(" + char(34) + "resid" + char(34) + ") == " + char(34) + "1" + char(34)
+	s[156] = "    if (k == 1L && (any(fesave) || doresid)) {"
+	s[157] = "      cols <- list(as.double(d[[one(" + char(34) + "rid" + char(34) + ")]][used]))"
+	s[158] = "      if (doresid) cols <- c(cols, list(as.double(resid(m))))"
+	s[159] = "      if (any(fesave)) {"
+	s[160] = "        fv <- fixef(m, notes = FALSE, sorted = FALSE)"
+	s[161] = "        for (j in which(fesave)) cols <- c(cols, list(as.double(fv[[j]][m" + char(36) + "fixef_id[[j]]])))"
+	s[162] = "      }"
+	s[163] = "      con <- file(file.path(dir, " + char(34) + "save1.bin" + char(34) + "), " + char(34) + "wb" + char(34) + ")"
+	s[164] = "      writeBin(unlist(cols), con, size = 8L, endian = " + char(34) + "little" + char(34) + ")"
+	s[165] = "      close(con)"
+	s[166] = "      writeLines(as.character(c(length(used), length(cols))), file.path(dir, " + char(34) + "save1.txt" + char(34) + "))"
+	s[167] = "    }"
+	s[168] = ""
+	s[169] = "    ex <- d[[one(" + char(34) + "rid" + char(34) + ")]][setdiff(seq_len(n_d), used)]"
+	s[170] = "    if (length(ex)) writeLines(as.character(ex), file.path(dir, paste0(" + char(34) + "x" + char(34) + ", k, " + char(34) + ".txt" + char(34) + ")))"
+	s[171] = "  }"
+	s[172] = ""
+	s[173] = "  t_end <- proc.time()[[" + char(34) + "elapsed" + char(34) + "]]"
+	s[174] = "  writeLines(paste(c(" + char(34) + "lib" + char(34) + ", " + char(34) + "read" + char(34) + ", " + char(34) + "fit" + char(34) + ", " + char(34) + "write" + char(34) + "),"
+	s[175] = "                   c(t_lib - t_start, t_read - t_lib, t_fit - t_read, t_end - t_fit)),"
+	s[176] = "             file.path(dir, " + char(34) + "time.txt" + char(34) + "))"
+	s[177] = "  " + char(34) + "ok" + char(34)
+	s[178] = "}, error = function(e) conditionMessage(e))"
+	s[179] = ""
+	s[180] = "if (!identical(res, " + char(34) + "ok" + char(34) + ")) fail(paste(" + char(34) + "Error in R:" + char(34) + ", res))"
+	s[181] = "writeLines(" + char(34) + "ok" + char(34) + ", file.path(dir, " + char(34) + "ok.txt" + char(34) + "))"
+	s[182] = "sink(type = " + char(34) + "message" + char(34) + ")"
+	s[183] = "sink()"
+	s[184] = "close(logcon)"
 	return(s)
 }
 

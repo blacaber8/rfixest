@@ -1,4 +1,4 @@
-# rfixest 1.0.0: R side of the Stata command rfixest. Called by rfixest.ado; not meant to be run by hand.
+# rfixest 1.1.0: R side of the Stata command rfixest. Called by rfixest.ado; not meant to be run by hand.
 t_start <- proc.time()[["elapsed"]]
 argv <- commandArgs(trailingOnly = TRUE)
 dir <- argv[1]
@@ -150,6 +150,21 @@ res <- tryCatch({
       paste("b", num(unname(bf))),
       paste("v", num(as.vector(Vf)))
     ), file.path(dir, paste0("r", k, ".txt")))
+
+    fesave <- meta$fesave == "1"
+    doresid <- one("resid") == "1"
+    if (k == 1L && (any(fesave) || doresid)) {
+      cols <- list(as.double(d[[one("rid")]][used]))
+      if (doresid) cols <- c(cols, list(as.double(resid(m))))
+      if (any(fesave)) {
+        fv <- fixef(m, notes = FALSE, sorted = FALSE)
+        for (j in which(fesave)) cols <- c(cols, list(as.double(fv[[j]][m$fixef_id[[j]]])))
+      }
+      con <- file(file.path(dir, "save1.bin"), "wb")
+      writeBin(unlist(cols), con, size = 8L, endian = "little")
+      close(con)
+      writeLines(as.character(c(length(used), length(cols))), file.path(dir, "save1.txt"))
+    }
 
     ex <- d[[one("rid")]][setdiff(seq_len(n_d), used)]
     if (length(ex)) writeLines(as.character(ex), file.path(dir, paste0("x", k, ".txt")))
