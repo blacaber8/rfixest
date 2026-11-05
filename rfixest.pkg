@@ -1,0 +1,12 @@
+v 3
+d rfixest: fast fixed-effects regressions in Stata, estimated by the R package fixest
+d
+d Linear, Poisson and negative binomial regressions with many high-dimensional
+d fixed effects, several outcomes at once, robust and multiway clustered
+d standard errors. Results come back to Stata as a regular estimation command.
+d Requires R (any recent version). Type "rfixest setup" once after installing.
+d
+d Distribution-Date: 20261104
+f rfixest.ado
+f rfixest.sthlp
+f rfixest.R

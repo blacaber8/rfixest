@@ -1,0 +1,3 @@
+v 3
+d rfixest: fast fixed-effects regressions in Stata, estimated by the R package fixest
+p rfixest Fast fixed-effects regressions estimated by the R package fixest
