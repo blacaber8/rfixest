@@ -1,4 +1,4 @@
-*! rfixest 1.1.0  04nov2026
+*! rfixest 1.2.0  05nov2026
 *! Fixed-effects regressions in Stata estimated by the R package fixest
 program define rfixest, eclass
 	version 16
@@ -28,7 +28,7 @@ program define rfixest, eclass
 		[ Absorb(string) NOAbsorb VCE(string) CLuster(varlist) Family(string) ///
 		  KEEPSINGletons DFRESid PPMLse FULLsample THReads(integer 0) TOL(real 1e-6) ///
 		  ESTore(name) ESTArt(integer 1) TMPdir(string) RSCRIPT(string) Level(cilevel) QUIetly TIMEit KEEPfiles ///
-		  RESiduals(name) ]
+		  RESiduals(name) SAVEFE ]
 
 	cap timer off 100
 	timer clear 100
@@ -80,6 +80,20 @@ program define rfixest, eclass
 		local feterms `feterms' `term'
 	}
 	local fevars : list uniq fevars
+	if "`savefe'" != "" {
+		cap drop __hdfe*__
+		local i = 0
+		local fs2 ""
+		foreach nm of local fesave {
+			local ++i
+			if "`nm'" == "." {
+				local nm "__hdfe`i'__"
+				local fenames `fenames' `nm'
+			}
+			local fs2 `fs2' `nm'
+		}
+		local fesave `fs2'
+	}
 	if "`residuals'" != "" confirm new variable `residuals'
 	if "`fenames'`residuals'" != "" & `multi' {
 		di as error "residuals() and saved fixed effects (absorb(newvar=var)) need a single dependent variable"
@@ -307,6 +321,10 @@ program define _rfx_run, eclass
 		ereturn local title = cond("`family'" == "ols", "Linear regression with fixed effects (fixest)", ///
 			cond("`family'" == "poisson", "Poisson regression with fixed effects (fixest)", "Negative binomial regression with fixed effects (fixest)"))
 		ereturn local properties "b V"
+		ereturn local predict "rfixest_p"
+		ereturn local fe_saved "`savev'"
+		ereturn scalar n_fe = `: word count `feterms''
+		ereturn scalar fe_all = `: word count `savev'' == `: word count `feterms''
 		foreach s in df_a ssr r2 r2_a r2_within r2_a_within rmse ll r2_p {
 			ereturn scalar `s' = scalar(_rfx_`s')
 		}
@@ -652,7 +670,7 @@ string colvector _rfx_rcode()
 {
 	string colvector s
 	s = J(184, 1, "")
-	s[1] = "# rfixest 1.1.0: R side of the Stata command rfixest. Called by rfixest.ado; not meant to be run by hand."
+	s[1] = "# rfixest 1.2.0: R side of the Stata command rfixest. Called by rfixest.ado; not meant to be run by hand."
 	s[2] = "t_start <- proc.time()[[" + char(34) + "elapsed" + char(34) + "]]"
 	s[3] = "argv <- commandArgs(trailingOnly = TRUE)"
 	s[4] = "dir <- argv[1]"

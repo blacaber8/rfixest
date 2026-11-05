@@ -11,6 +11,7 @@ results back to Stata as a regular estimation command. You never have to open R.
 - Interacted fixed effects (`absorb(id industry#year)`), factor variables, `aweight`/`pweight`,
   robust and multiway clustered standard errors
 - Saves the estimated fixed effects and the residuals, as in `reghdfe`: `absorb(FE_id=id year) residuals(res)`
+- `predict` with `xb`, `xbd`, `d`, `residuals` and `mu`, as in `reghdfe` (add `savefe` to save the fixed effects)
 - Works with `estimates store`, `esttab`, `test`, `lincom` and `e(sample)`
 - R runs in the background: no R window, no R code to write
 

@@ -8,4 +8,5 @@ d Requires R (any recent version). Type "rfixest setup" once after installing.
 d
 d Distribution-Date: 20261105
 f rfixest.ado
+f rfixest_p.ado
 f rfixest.sthlp

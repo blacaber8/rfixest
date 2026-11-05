@@ -24,7 +24,13 @@ summarize FE_id FE_year res
 * 7. Poisson regression
 rfixest hours tenure ttl_exp, absorb(idcode year) cluster(idcode) family(poisson)
 
-* 8. Postestimation
+* 8. predict, after saving all fixed effects
+rfixest ln_wage tenure ttl_exp, absorb(idcode year) savefe cluster(idcode) quietly
+predict yhat, xbd
+predict e, residuals
+summarize ln_wage yhat e if e(sample)
+
+* 9. Postestimation
 rfixest ln_wage tenure ttl_exp, absorb(idcode year) cluster(idcode) quietly
 test tenure = ttl_exp
 lincom tenure + ttl_exp

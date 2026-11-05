@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.1.0  04nov2026}{...}
+{* *! version 1.2.0  05nov2026}{...}
 {title:Title}
 
 {phang}
@@ -32,6 +32,7 @@
 {synopt:{opt ppmlse}}no small-sample adjustment of the variance, as {cmd:ppmlhdfe}{p_end}
 
 {syntab:Reporting and storing}
+{synopt:{opt savefe}}save every fixed effect not named in {cmd:absorb()} as {cmd:__hdfe1__}, {cmd:__hdfe2__}, ... (needed by {cmd:predict, xbd}){p_end}
 {synopt:{opt res:iduals(newvar)}}save the residuals in {it:newvar} (missing outside the estimation sample){p_end}
 {synopt:{opt est:ore(name)}}store the estimates; with several outcomes, {it:name}1, {it:name}2, ...{p_end}
 {synopt:{opt esta:rt(#)}}first number used to name stored estimates; default 1{p_end}
@@ -58,7 +59,7 @@
 It sends the data to the R package {browse "https://lrberge.github.io/fixest/":fixest} (Berge 2018), which is among the fastest
 implementations available, and brings the results back to Stata as a regular estimation command: {cmd:e(b)}, {cmd:e(V)},
 {cmd:e(sample)}, so {cmd:estimates store}, {cmd:esttab}, {cmd:test} and {cmd:lincom} work as usual.
-{cmd:predict} and {cmd:margins} are not supported.
+{cmd:predict} works as after {cmd:reghdfe} (see below); {cmd:margins} is not supported.
 
 {pstd}
 Point estimates and standard errors match {cmd:reghdfe} (OLS) and {cmd:ppmlhdfe} (Poisson) with the same options.
@@ -122,6 +123,27 @@ dependent variable. With two or more fixed effects, each one is identified only 
 effect can differ from {cmd:reghdfe} by a constant; differences between groups, the sum of all fixed effects plus the constant
 and the residuals are the same. For Poisson and negative binomial models the fixed effects are on the scale of the linear index
 and the residuals are {it:y} minus the predicted mean.
+
+
+{title:predict}
+
+{p 8 15 2}
+{cmd:predict} {newvar} {ifin} [{cmd:,} {cmd:xb} | {cmd:xbd} | {cmd:d} | {cmd:residuals} | {cmd:mu}]
+
+{synoptset 16}{...}
+{synopt:{cmd:xb}}linear prediction without the fixed effects (the default){p_end}
+{synopt:{cmd:xbd}}linear prediction including the fixed effects{p_end}
+{synopt:{cmd:d}}sum of the fixed effects{p_end}
+{synopt:{cmd:residuals}}{it:y} minus {cmd:xbd} (OLS) or {it:y} minus {cmd:mu} (Poisson, negative binomial){p_end}
+{synopt:{cmd:mu}}predicted mean, exp({cmd:xbd}), after Poisson and negative binomial models{p_end}
+
+{pstd}
+{cmd:xbd}, {cmd:d}, {cmd:residuals} and {cmd:mu} need every fixed effect saved at estimation, with the option {cmd:savefe}
+or by naming each one in {cmd:absorb()}, as in {cmd:reghdfe}. They are filled in the estimation sample. Example:
+
+{phang2}{cmd:. rfixest ln_wage tenure ttl_exp, absorb(idcode year) savefe cluster(idcode)}{p_end}
+{phang2}{cmd:. predict yhat, xbd}{p_end}
+{phang2}{cmd:. predict e, residuals}{p_end}
 
 
 {title:Stored results}

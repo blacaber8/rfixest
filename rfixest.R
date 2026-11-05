@@ -1,4 +1,4 @@
-# rfixest 1.1.0: R side of the Stata command rfixest. Called by rfixest.ado; not meant to be run by hand.
+# rfixest 1.2.0: R side of the Stata command rfixest. Called by rfixest.ado; not meant to be run by hand.
 t_start <- proc.time()[["elapsed"]]
 argv <- commandArgs(trailingOnly = TRUE)
 dir <- argv[1]
