@@ -72,7 +72,7 @@ nonmissing observations.
 {title:Requirements and first use}
 
 {pstd}
-{cmd:rfixest} needs R ({browse "https://cran.r-project.org":cran.r-project.org}), any recent version. The first time, type
+{cmd:rfixest} needs Stata 16 or later (it uses data frames) and R ({browse "https://cran.r-project.org":cran.r-project.org}), version 4.0 or later. The first time, type
 
 {phang2}{cmd:. rfixest setup}{p_end}
 

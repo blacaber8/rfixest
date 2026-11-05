@@ -63,7 +63,7 @@ standard errors clustered by individual, on a Windows desktop:
 
 ## Requirements
 
-- Stata 16 or later
+- Stata 16 or later (the command uses Stata data frames, introduced in version 16)
 - R 4.0 or later, with the R package `fixest` (installed by `rfixest setup`)
 - On Windows, Stata must run with its graphical interface (as it normally does). On macOS and Linux any mode works.
 
