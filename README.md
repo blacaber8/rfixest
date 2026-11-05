@@ -72,4 +72,6 @@ standard errors clustered by individual, on a Windows desktop:
 All the estimation is done by [fixest](https://lrberge.github.io/fixest/) (Laurent Bergé). Please cite it:
 Bergé, L. (2018), "Efficient estimation of maximum likelihood models with multiple fixed-effects: the R package FENmlm", CREA Discussion Papers 13.
 
+The R code that `rfixest` runs is embedded in `rfixest.ado`, so installation needs nothing else. `rfixest.R` in this repository is a readable copy of that code.
+
 License: MIT.

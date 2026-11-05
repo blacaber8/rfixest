@@ -198,8 +198,8 @@ program define _rfx_run, eclass
 	file write `fh' "ppmlse " (cond("`ppmlse'" != "", 1, 0)) _n
 	file close `fh'
 
-	qui findfile rfixest.R
-	local rfile = subinstr(`"`r(fn)'"', "\", "/", .)
+	local rfile `"`dir'/rfixest.R"'
+	mata: _rfx_writeR(st_local("rfile"))
 
 	timer off 100
 	qui timer list 100
@@ -463,8 +463,8 @@ program define _rfx_setup
 	mata: st_local("tok", subinstr(pathbasename(st_local("stamp")), ".", "_"))
 	local dir `"`tdir'/rfixest_setup_`tok'"'
 	mkdir `"`dir'"'
-	qui findfile rfixest.R
-	local rfile = subinstr(`"`r(fn)'"', "\", "/", .)
+	local rfile `"`dir'/rfixest.R"'
+	mata: _rfx_writeR(st_local("rfile"))
 	di as text "Using R at " as result `"`r'"'
 	di as text "Checking the R package fixest (installing it from CRAN if needed; this can take a few minutes the first time)..."
 	_rfx_callR, rscript(`r') rfile(`rfile') dir(`dir') args(setup)
@@ -577,3 +577,194 @@ void _rfx_excl(string scalar fn, string scalar var)
 	st_store(x, var, J(rows(x), 1, 0))
 }
 end
+
+* begin embedded R code
+mata:
+string colvector _rfx_rcode()
+{
+	string colvector s
+	s = J(169, 1, "")
+	s[1] = "# rfixest 1.0.0: R side of the Stata command rfixest. Called by rfixest.ado; not meant to be run by hand."
+	s[2] = "t_start <- proc.time()[[" + char(34) + "elapsed" + char(34) + "]]"
+	s[3] = "argv <- commandArgs(trailingOnly = TRUE)"
+	s[4] = "dir <- argv[1]"
+	s[5] = "mode <- if (length(argv) > 1) argv[2] else " + char(34) + "fit" + char(34)
+	s[6] = ""
+	s[7] = "logcon <- file(file.path(dir, " + char(34) + "log.txt" + char(34) + "), open = " + char(34) + "wt" + char(34) + ")"
+	s[8] = "sink(logcon)"
+	s[9] = "sink(logcon, type = " + char(34) + "message" + char(34) + ")"
+	s[10] = "options(warn = 1)"
+	s[11] = ""
+	s[12] = "fail <- function(msg) {"
+	s[13] = "  writeLines(msg, file.path(dir, " + char(34) + "err.txt" + char(34) + "))"
+	s[14] = "  cat(msg, " + char(34) + "\n" + char(34) + ")"
+	s[15] = "  sink(type = " + char(34) + "message" + char(34) + ")"
+	s[16] = "  sink()"
+	s[17] = "  close(logcon)"
+	s[18] = "  quit(save = " + char(34) + "no" + char(34) + ", status = 1)"
+	s[19] = "}"
+	s[20] = ""
+	s[21] = "user_lib <- Sys.getenv(" + char(34) + "R_LIBS_USER" + char(34) + ")"
+	s[22] = "if (nzchar(user_lib) && dir.exists(user_lib)) .libPaths(c(user_lib, .libPaths()))"
+	s[23] = ""
+	s[24] = "if (mode == " + char(34) + "setup" + char(34) + ") {"
+	s[25] = "  if (!requireNamespace(" + char(34) + "fixest" + char(34) + ", quietly = TRUE)) {"
+	s[26] = "    lib <- .libPaths()[1]"
+	s[27] = "    if (file.access(lib, 2) != 0) {"
+	s[28] = "      lib <- user_lib"
+	s[29] = "      dir.create(lib, recursive = TRUE, showWarnings = FALSE)"
+	s[30] = "      .libPaths(c(lib, .libPaths()))"
+	s[31] = "    }"
+	s[32] = "    res <- try(install.packages(" + char(34) + "fixest" + char(34) + ", lib = lib, repos = " + char(34) + "https://cloud.r-project.org" + char(34) + "), silent = TRUE)"
+	s[33] = "    if (!requireNamespace(" + char(34) + "fixest" + char(34) + ", quietly = TRUE)) fail(" + char(34) + "Could not install the R package fixest. See the R output above." + char(34) + ")"
+	s[34] = "  }"
+	s[35] = "  writeLines(as.character(utils::packageVersion(" + char(34) + "fixest" + char(34) + ")), file.path(dir, " + char(34) + "ok.txt" + char(34) + "))"
+	s[36] = "  sink(type = " + char(34) + "message" + char(34) + ")"
+	s[37] = "  sink()"
+	s[38] = "  close(logcon)"
+	s[39] = "  quit(save = " + char(34) + "no" + char(34) + ", status = 0)"
+	s[40] = "}"
+	s[41] = ""
+	s[42] = "if (!requireNamespace(" + char(34) + "fixest" + char(34) + ", quietly = TRUE)) fail(" + char(34) + "RFIXEST_NO_FIXEST" + char(34) + ")"
+	s[43] = ""
+	s[44] = "res <- tryCatch({"
+	s[45] = "  meta <- strsplit(readLines(file.path(dir, " + char(34) + "meta.txt" + char(34) + ")), " + char(34) + " " + char(34) + ", fixed = TRUE)"
+	s[46] = "  names(meta) <- vapply(meta, " + char(96) + "[" + char(96) + ", " + char(34) + char(34) + ", 1L)"
+	s[47] = "  meta <- lapply(meta, " + char(96) + "[" + char(96) + ", -1L)"
+	s[48] = "  one <- function(k) meta[[k]][1L]"
+	s[49] = ""
+	s[50] = "  suppressPackageStartupMessages(library(fixest))"
+	s[51] = "  setFixest_notes(FALSE)"
+	s[52] = "  t_lib <- proc.time()[[" + char(34) + "elapsed" + char(34) + "]]"
+	s[53] = ""
+	s[54] = "  d <- foreign::read.dta(file.path(dir, " + char(34) + "d.dta" + char(34) + "), convert.dates = FALSE, convert.factors = FALSE, missing.type = FALSE)"
+	s[55] = "  t_read <- proc.time()[[" + char(34) + "elapsed" + char(34) + "]]"
+	s[56] = ""
+	s[57] = "  Y   <- meta" + char(36) + "y"
+	s[58] = "  X   <- meta" + char(36) + "x"
+	s[59] = "  FE  <- meta" + char(36) + "fe"
+	s[60] = "  CL  <- meta" + char(36) + "cl"
+	s[61] = "  W   <- meta" + char(36) + "w"
+	s[62] = "  vce <- one(" + char(34) + "vce" + char(34) + ")"
+	s[63] = "  fam <- one(" + char(34) + "family" + char(34) + ")"
+	s[64] = "  nth <- as.integer(one(" + char(34) + "threads" + char(34) + "))"
+	s[65] = "  tol <- as.numeric(one(" + char(34) + "tol" + char(34) + "))"
+	s[66] = "  keep_single <- one(" + char(34) + "keepsingletons" + char(34) + ") == " + char(34) + "1" + char(34)
+	s[67] = ""
+	s[68] = "  rhs <- if (length(X)) paste(X, collapse = " + char(34) + "+" + char(34) + ") else " + char(34) + "1" + char(34)
+	s[69] = "  make_fml <- function(ys) {"
+	s[70] = "    lhs <- if (length(ys) > 1L) paste0(" + char(34) + "c(" + char(34) + ", paste(ys, collapse = " + char(34) + "," + char(34) + "), " + char(34) + ")" + char(34) + ") else ys"
+	s[71] = "    f <- paste(lhs, " + char(34) + "~" + char(34) + ", rhs)"
+	s[72] = "    if (length(FE)) f <- paste(f, " + char(34) + "|" + char(34) + ", paste(FE, collapse = " + char(34) + "+" + char(34) + "))"
+	s[73] = "    as.formula(f, env = globalenv())"
+	s[74] = "  }"
+	s[75] = "  same_na <- length(Y) == 1L || all(vapply(Y[-1L], function(v) identical(is.na(d[[v]]), is.na(d[[Y[1L]]])), TRUE))"
+	s[76] = "  fml <- make_fml(Y)"
+	s[77] = ""
+	s[78] = "  vc <- switch(vce,"
+	s[79] = "    cluster = as.formula(paste(" + char(34) + "~" + char(34) + ", paste(CL, collapse = " + char(34) + "+" + char(34) + ")), env = globalenv()),"
+	s[80] = "    robust  = " + char(34) + "hetero" + char(34) + ","
+	s[81] = "    " + char(34) + "iid" + char(34) + ")"
+	s[82] = ""
+	s[83] = "  args <- list(fml = fml, data = d, vcov = vc, fixef.tol = tol)"
+	s[84] = "  if (nth > 0) args" + char(36) + "nthreads <- nth"
+	s[85] = "  if (length(W)) args" + char(36) + "weights <- as.formula(paste(" + char(34) + "~" + char(34) + ", W), env = globalenv())"
+	s[86] = "  if (one(" + char(34) + "ppmlse" + char(34) + ") == " + char(34) + "1" + char(34) + ") args" + char(36) + "ssc <- ssc(adj = FALSE)"
+	s[87] = ""
+	s[88] = "  fit <- function(a) switch(fam,"
+	s[89] = "    poisson = {"
+	s[90] = "      a" + char(36) + "fixef.rm <- if (keep_single) " + char(34) + "perfect" + char(34) + " else " + char(34) + "both" + char(34)
+	s[91] = "      do.call(fepois, a)"
+	s[92] = "    },"
+	s[93] = "    negbin = {"
+	s[94] = "      a" + char(36) + "fixef.rm <- if (keep_single) " + char(34) + "perfect" + char(34) + " else " + char(34) + "both" + char(34)
+	s[95] = "      do.call(fenegbin, a)"
+	s[96] = "    },"
+	s[97] = "    {"
+	s[98] = "      a" + char(36) + "fixef.rm <- if (keep_single) " + char(34) + "none" + char(34) + " else " + char(34) + "singleton" + char(34)
+	s[99] = "      do.call(feols, a)"
+	s[100] = "    })"
+	s[101] = "  if (same_na) {"
+	s[102] = "    M <- fit(args)"
+	s[103] = "    models <- if (inherits(M, " + char(34) + "fixest_multi" + char(34) + ")) as.list(M) else list(M)"
+	s[104] = "  } else {"
+	s[105] = "    models <- lapply(Y, function(v) {"
+	s[106] = "      a <- args"
+	s[107] = "      a" + char(36) + "fml <- make_fml(v)"
+	s[108] = "      fit(a)"
+	s[109] = "    })"
+	s[110] = "  }"
+	s[111] = "  t_fit <- proc.time()[[" + char(34) + "elapsed" + char(34) + "]]"
+	s[112] = "  n_d <- nrow(d)"
+	s[113] = "  num <- function(x) format(x, digits = 17L, trim = TRUE, scientific = TRUE)"
+	s[114] = "  w_norm <- function(used) if (length(W)) length(used) / sum(d[[W]][used]) else 1"
+	s[115] = ""
+	s[116] = "  for (k in seq_along(models)) {"
+	s[117] = "    m <- models[[k]]"
+	s[118] = "    V <- vcov(m)"
+	s[119] = "    b <- coef(m)"
+	s[120] = "    N <- nobs(m)"
+	s[121] = "    K <- m" + char(36) + "nparams"
+	s[122] = "    nb <- length(b)"
+	s[123] = ""
+	s[124] = "    pos <- c(X, if (!length(FE)) " + char(34) + "(Intercept)" + char(34) + ")"
+	s[125] = "    bf <- setNames(numeric(length(pos)), pos)"
+	s[126] = "    Vf <- matrix(0, length(pos), length(pos), dimnames = list(pos, pos))"
+	s[127] = "    est <- intersect(pos, names(b))"
+	s[128] = "    bf[est] <- b[est]"
+	s[129] = "    Vf[est, est] <- V[est, est]"
+	s[130] = ""
+	s[131] = "    used <- obs(m)"
+	s[132] = "    G <- vapply(CL, function(v) length(unique(d[[v]][used])), 0)"
+	s[133] = ""
+	s[134] = "    if (fam == " + char(34) + "ols" + char(34) + ") {"
+	s[135] = "      r <- r2(m, c(" + char(34) + "r2" + char(34) + ", " + char(34) + "ar2" + char(34) + ", " + char(34) + "wr2" + char(34) + ", " + char(34) + "war2" + char(34) + "))"
+	s[136] = "      stat <- c(N = N, K = K, df_a = K - nb, ssr = m" + char(36) + "ssr,"
+	s[137] = "                r2 = r[[" + char(34) + "r2" + char(34) + "]], r2_a = r[[" + char(34) + "ar2" + char(34) + "]], r2_within = r[[" + char(34) + "wr2" + char(34) + "]], r2_a_within = r[[" + char(34) + "war2" + char(34) + "]],"
+	s[138] = "                rmse = sqrt(m" + char(36) + "ssr * w_norm(used) / (N - K)), ll = NA_real_, r2_p = NA_real_)"
+	s[139] = "    } else {"
+	s[140] = "      r <- r2(m, " + char(34) + "pr2" + char(34) + ")"
+	s[141] = "      stat <- c(N = N, K = K, df_a = K - nb, ssr = NA_real_,"
+	s[142] = "                r2 = NA_real_, r2_a = NA_real_, r2_within = NA_real_, r2_a_within = NA_real_,"
+	s[143] = "                rmse = NA_real_, ll = as.numeric(logLik(m)), r2_p = r[[" + char(34) + "pr2" + char(34) + "]])"
+	s[144] = "    }"
+	s[145] = "    if (length(G)) stat <- c(stat, setNames(G, paste0(" + char(34) + "G" + char(34) + ", seq_along(G))))"
+	s[146] = "    stat <- c(stat, n_collin = length(pos) - length(est))"
+	s[147] = ""
+	s[148] = "    writeLines(c("
+	s[149] = "      paste(" + char(34) + "s" + char(34) + ", names(stat), num(unname(stat))),"
+	s[150] = "      paste(" + char(34) + "b" + char(34) + ", num(unname(bf))),"
+	s[151] = "      paste(" + char(34) + "v" + char(34) + ", num(as.vector(Vf)))"
+	s[152] = "    ), file.path(dir, paste0(" + char(34) + "r" + char(34) + ", k, " + char(34) + ".txt" + char(34) + ")))"
+	s[153] = ""
+	s[154] = "    ex <- d[[one(" + char(34) + "rid" + char(34) + ")]][setdiff(seq_len(n_d), used)]"
+	s[155] = "    if (length(ex)) writeLines(as.character(ex), file.path(dir, paste0(" + char(34) + "x" + char(34) + ", k, " + char(34) + ".txt" + char(34) + ")))"
+	s[156] = "  }"
+	s[157] = ""
+	s[158] = "  t_end <- proc.time()[[" + char(34) + "elapsed" + char(34) + "]]"
+	s[159] = "  writeLines(paste(c(" + char(34) + "lib" + char(34) + ", " + char(34) + "read" + char(34) + ", " + char(34) + "fit" + char(34) + ", " + char(34) + "write" + char(34) + "),"
+	s[160] = "                   c(t_lib - t_start, t_read - t_lib, t_fit - t_read, t_end - t_fit)),"
+	s[161] = "             file.path(dir, " + char(34) + "time.txt" + char(34) + "))"
+	s[162] = "  " + char(34) + "ok" + char(34)
+	s[163] = "}, error = function(e) conditionMessage(e))"
+	s[164] = ""
+	s[165] = "if (!identical(res, " + char(34) + "ok" + char(34) + ")) fail(paste(" + char(34) + "Error in R:" + char(34) + ", res))"
+	s[166] = "writeLines(" + char(34) + "ok" + char(34) + ", file.path(dir, " + char(34) + "ok.txt" + char(34) + "))"
+	s[167] = "sink(type = " + char(34) + "message" + char(34) + ")"
+	s[168] = "sink()"
+	s[169] = "close(logcon)"
+	return(s)
+}
+
+void _rfx_writeR(string scalar fn)
+{
+	real scalar fh, i
+	string colvector s
+	s = _rfx_rcode()
+	if (fileexists(fn)) unlink(fn)
+	fh = fopen(fn, "w")
+	for (i = 1; i <= rows(s); i++) fput(fh, s[i])
+	fclose(fh)
+}
+end
+* end embedded R code
